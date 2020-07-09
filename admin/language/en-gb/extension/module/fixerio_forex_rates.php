@@ -9,6 +9,7 @@ $_['text_edit']			= 'Edit Fixer.io Forex Rates Module';
 // Entry
 $_['entry_access_key']		= 'Access Key';
 $_['entry_status'] = 'Status';
+$_['entry_last_update'] = 'Last Update';
 
 // Placeholder
 $_['placeholder_access_key'] 	= '';
