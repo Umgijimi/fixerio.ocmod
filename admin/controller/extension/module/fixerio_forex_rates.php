@@ -1,27 +1,29 @@
 <?php
 class ControllerExtensionModuleFixerioForexRates extends Controller {
 	
-	private $version = '0.0.1';
+	private $version = '0.1.0';
     private $error = array();
   
     public function index() {
 		$this->load->language('extension/module/fixerio_forex_rates');
 		$this->document->setTitle($this->language->get('heading_title'));
 		
+		$data = array();
+		
 		$this->load->model('setting/setting');
 		
 		if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validate()) {
+
+			if($this->config->get('module_fixerio_forex_rates_last_update')){
+				$this->request->post['module_fixerio_forex_rates_last_update'] = $this->config->get('module_fixerio_forex_rates_last_update');
+			}else{
+				$this->request->post['module_fixerio_forex_rates_last_update'] = $this->db->escape(date('Y-m-d H:i:s', strtotime("-30 days")));
+			}
 			
-			//Update update date 
-			$this->request->post['module_fixerio_forex_rates_last_update'] = date('Y-m-d H:i:s');
 			
-			 $this->model_setting_setting->editSetting('module_fixerio_forex_rates', $this->request->post);
-			
-			//$this->cache->delete('fixerio_forex_rates');
+			$this->model_setting_setting->editSetting('module_fixerio_forex_rates', $this->request->post);
 			 
-			$this->session->data['success'] = $this->language->get('text_success');
-			  
-			$this->response->redirect($this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module', true));
+			$data['success'] = $this->language->get('text_success');
 		}
 		
 		if (isset($this->error['warning'])) {
@@ -29,8 +31,7 @@ class ControllerExtensionModuleFixerioForexRates extends Controller {
         } else {
             $data['error_warning'] = '';
         }
-		
-		$data = array();
+
 		
 		$data['heading_title'] = $this->language->get('heading_title') . ' ' . $this->version;
 
@@ -60,6 +61,16 @@ class ControllerExtensionModuleFixerioForexRates extends Controller {
 		} else {
 			$data['module_fixerio_forex_rates_access_key'] = '';
 		}
+		
+		if (isset($this->request->post['module_fixerio_forex_rates_update_frequency'])) {
+			$data['module_fixerio_forex_rates_update_frequency'] = $this->request->post['module_fixerio_forex_rates_update_frequency'];
+		} elseif ($this->config->get('module_fixerio_forex_rates_update_frequency')) {
+			$data['module_fixerio_forex_rates_update_frequency'] = $this->config->get('module_fixerio_forex_rates_update_frequency');
+		} else {
+			$data['module_fixerio_forex_rates_update_frequency'] = '13';
+		}
+		
+		
 		
 		if (isset($this->request->post['module_fixerio_forex_rates_status'])) {
 			$data['module_fixerio_forex_rates_status'] = $this->request->post['module_fixerio_forex_rates_status'];
@@ -103,10 +114,9 @@ class ControllerExtensionModuleFixerioForexRates extends Controller {
 		$this->load->model('setting/event');
 		$this->model_setting_event->deleteEventByCode('fixerio_forex_rates');
 		
-		//catalog/view/common/header/after
-        //$this->model_setting_event->addEvent('fixerio_forex_rates', 'catalog/controller/*/before', 'extension/module/fixerio_forex_rates/update_rates');
 		$this->model_setting_event->addEvent('fixerio_forex_rates', 'admin/controller/common/header/after', 'extension/module/fixerio_forex_rates/update_rates');
-		$this->model_setting_event->addEvent('fixerio_forex_rates', 'catalog/controller/common/header/after', 'extension/module/fixerio_forex_rates/update_rates');
+		
+		$this->model_setting_event->addEvent('fixerio_forex_rates', 'catalog/view/common/header/after', 'extension/module/fixerio_forex_rates/update_rates');
 	}
  
     public function uninstall() {
@@ -119,27 +129,21 @@ class ControllerExtensionModuleFixerioForexRates extends Controller {
 	
 	public function update_rates($route, $args){
 		$this->load->model('setting/setting');
-		
+
 		$access_key = $this->config->get('module_fixerio_forex_rates_access_key');
 		$enabled = $this->config->get('module_fixerio_forex_rates_status');
 		$last_update = $this->config->get('module_fixerio_forex_rates_last_update');
+		$update_frequency = $this->config->get('module_fixerio_forex_rates_update_frequency');
 		
 		$base_currency = $this->config->get('config_currency');
 		
 		//Do nothing if extension is disabled or the access_key is empty
 		if(!$enabled || strlen($access_key) == 0) return;
 		
-		$log = new Log('fixerio_forex_rates.log');
-		
-		$log->write('access_key:' . $access_key);
-		$log->write('status:' . $enabled);
-		
-		//once per day
-		$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "currency WHERE code != '" . $this->db->escape($this->config->get('config_currency')) . "' AND date_modified < '" .  $this->db->escape(date('Y-m-d H:i:s', strtotime('-1 day'))) . "'");
+		$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "currency WHERE code != '" . $this->db->escape($this->config->get('config_currency')) . "' AND date_modified < '" .  $this->db->escape(date('Y-m-d H:i:s', strtotime("-$update_frequency hours"))) . "'");
 			
-		//Day has not passed
+		//Nothing to update. Happens when update_frequency has not passed.
 		if(count($query->rows) == 0){
-			$log->write('Will be updated after 24 hours');
 			return;
 		}
 		
@@ -174,6 +178,9 @@ class ControllerExtensionModuleFixerioForexRates extends Controller {
 			$this->db->query("UPDATE " . DB_PREFIX . "currency SET value = '1.00000', date_modified = '" .  $this->db->escape(date('Y-m-d H:i:s')) . "' WHERE code = '" . $this->db->escape($this->config->get('config_currency')) . "'");
 			
 			$this->cache->delete('currency');
+
+			//Set the time of the last update 
+			$this->model_setting_setting->editSettingValue('module_fixerio_forex_rates', 'module_fixerio_forex_rates_last_update', date('Y-m-d H:i:s'));
 		}
 		
 	}

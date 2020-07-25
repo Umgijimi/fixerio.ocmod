@@ -23,6 +23,13 @@
       <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
     {% endif %}
+	
+    {% if success %}
+    <div class="alert alert-success alert-dismissible"><i class="fa fa-exclamation-circle"></i> {{ success }}
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+    {% endif %}
+	
     <div class="panel panel-default">
       <div class="panel-heading">
         <h3 class="panel-title"><i class="fa fa-pencil"></i> {{ text_edit }}</h3>
@@ -50,6 +57,34 @@
                 <option value="1">{{ text_enabled }}</option>
                 <option value="0" selected="selected">{{ text_disabled }}</option>
                 {% endif %}
+              </select>
+            </div>
+          </div>
+		  
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-freuqency">{{ entry_frequency }}</label>
+            <div class="col-sm-10">
+              <select name="module_fixerio_forex_rates_update_frequency" id="input-frequency" class="form-control">
+			  
+				{% for i in 1..24 %}
+					{% if loop.index0 is even %}
+							<option value="{{ i }}" 
+							{% if module_fixerio_forex_rates_update_frequency == i %}
+							selected="selected"
+							{% endif %}
+							>
+								{{ i }} 
+								{% if i == 1 %}
+								{{ entry_hour }}
+								{% else %}
+								{{ entry_hours }}
+								{% endif %}
+							
+							</option>
+					{% endif %}
+					
+				{% endfor %}
+
               </select>
             </div>
           </div>
